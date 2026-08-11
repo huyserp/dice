@@ -32,10 +32,11 @@ suite green.
 
 ### M2 — Infrastructure and one vertical slice
 
-AWS account hardening (MFA, IAM Identity Center, a Budgets alarm on day one).
-`cdk bootstrap`, then a first stack: VPC, Aurora Serverless v2, one Lambda, one
-HTTP API route. Exactly one endpoint end to end — `POST /games`. GitHub Actions
-deploys via OIDC role assumption; no long-lived access keys.
+AWS account hardening (MFA, IAM Identity Center, a Budgets alarm on day one) —
+sequenced in [`aws-account-setup.md`](aws-account-setup.md). Then `cdk bootstrap`
+and a first stack: VPC, Aurora Serverless v2, one Lambda, one HTTP API route.
+Exactly one endpoint end to end — `POST /games`. GitHub Actions deploys via OIDC
+role assumption; no long-lived access keys.
 
 *Done when:* one endpoint is live, deployed by pipeline, with nothing created by
 hand in the console.
