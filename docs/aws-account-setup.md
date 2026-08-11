@@ -65,6 +65,27 @@ Root is for the handful of tasks that legitimately require it (closing the
 account, changing the support plan, some billing settings). Daily work uses a
 separate identity.
 
+> **Pick the region before enabling anything in this phase.**
+>
+> IAM Identity Center is pinned to the region it is enabled in, and moving it
+> means deleting the instance — taking its users, permission sets, and
+> assignments with it. The region decision in Phase 3 therefore has to be made
+> here, even though the ADR recording it can be written later.
+
+> **Enabling Identity Center creates an AWS Organization, and that forfeits
+> free-tier credits.**
+>
+> The organization instance of Identity Center requires an Organization, and
+> creating one converts a new account from the free plan to pay-as-you-go —
+> expiring any promotional credits immediately. Check Billing → Credits for the
+> balance and expiry before proceeding. Note that the free plan is itself
+> time-limited, so this is often "lose them now" rather than "lose them at all";
+> confirm the expiry date before treating it as a real cost.
+>
+> Deferring has its own price: without Identity Center the only alternatives are
+> root or an IAM user with long-lived access keys, and the latter is what the
+> "no long-lived AWS keys" standard exists to prevent.
+
 - [ ] **Enable IAM Identity Center.** This is the current mechanism; standalone
       IAM users with long-lived access keys are the legacy path and are what "no
       long-lived AWS keys" in `CLAUDE.md` refers to.
@@ -80,25 +101,31 @@ role, and no access key exists anywhere on your machine.
 
 ---
 
-## Phase 3 — Two decisions to make before bootstrapping
+## Phase 3 — Decisions to record before bootstrapping
 
-Both are cheap now and disruptive later. Each deserves an ADR.
+Both are cheap now and disruptive later. Each deserves an ADR. The region has to
+be *chosen* in Phase 2; what remains here is writing down why.
 
 - [ ] **Region.** `us-east-1` is cheapest, gets services first, and is required
       for a few global things (CloudFront certificates, for one). It is also the
       busiest region and the one whose outages make the news. `us-east-2` is a
-      common default for this reason. Aurora Serverless v2 is available in both.
-      Pick one and put it in an ADR — moving an Aurora cluster between regions
+      common default for this reason. Moving an Aurora cluster between regions
       later is a migration, not a config change.
 
-- [ ] **One account or several.** The disciplined answer is an Organization with
-      separate accounts for dev and prod, so a mistake in one cannot touch the
-      other. The honest answer for a single-developer project is that it doubles
-      the setup and the Identity Center configuration. A defensible middle path is
-      one account now with stack-level separation, recorded in an ADR as a known
-      compromise with the trigger for revisiting it stated.
+- [ ] **Confirm the region supports what the architecture depends on.** Per
+      ADR-4, this stack needs both the RDS Data API and Aurora Serverless v2
+      auto-pause at 0 ACU. Both are region-gated, and discovering a gap after
+      bootstrapping is expensive.
 
-**Stop condition:** two ADRs written, region fixed.
+- [ ] **One account or several.** The disciplined answer is separate accounts for
+      dev and prod, so a mistake in one cannot touch the other. The honest answer
+      for a single-developer project is that it doubles the setup and the Identity
+      Center configuration. Enabling Identity Center in Phase 2 already creates
+      the Organization, so the structure exists either way — what remains is
+      whether to populate it. One account now, recorded as a known compromise with
+      a stated trigger for revisiting, is defensible.
+
+**Stop condition:** ADRs written, region fixed and verified.
 
 ---
 

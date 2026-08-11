@@ -1,6 +1,6 @@
 # ADR-2: Aurora scale-to-zero vs. RDS Proxy
 
-Status: proposed — to be decided against load-test measurements
+Status: superseded by ADR-4
 Date: 2026-07-31
 
 ## Context
@@ -37,12 +37,12 @@ but only if recorded explicitly rather than reached by omission.
 
 ## Decision
 
-_Pending. To be recorded once the load test has established where the connection
-limit actually binds._
+_Never recorded here. Superseded by ADR-4, which decided the question on cost and
+usage shape rather than on the load-test measurement this ADR was waiting for._
 
 ## Consequences
 
-_Pending._
+_See ADR-4._
 
 ## Note
 
