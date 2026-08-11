@@ -22,3 +22,6 @@ vitest.config.ts.timestamp-*
 
 # local-only agent context — never commit
 CLAUDE.local.md
+
+# local reference notes — learning material, not project docs
+notes/
