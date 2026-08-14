@@ -67,6 +67,8 @@ strips types without checking them, so `npm run typecheck` is a separate gate.
 
 - [`docs/roadmap.md`](docs/roadmap.md) — scope, milestones, and what's excluded
 - [`docs/adr/`](docs/adr/) — architecture decision records
+- [`docs/aws-account-setup.md`](docs/aws-account-setup.md) — one-time account
+  hardening that precedes any deployment
 - [`CLAUDE.md`](CLAUDE.md) — conventions and standards
 
 ## License
