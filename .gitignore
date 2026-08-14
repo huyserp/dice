@@ -24,4 +24,5 @@ vitest.config.ts.timestamp-*
 CLAUDE.local.md
 
 # local reference notes — learning material, not project docs
-notes/
+# anchored: a future docs/notes/ should be tracked, not silently ignored
+/notes/

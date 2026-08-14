@@ -21,6 +21,7 @@ Format:
 
 Status: proposed | accepted | superseded by ADR-M
 Date: YYYY-MM-DD
+Supersedes: ADR-K          (only on a record that replaces an earlier one)
 
 ## Context
 What forced a decision. Constraints, scale, cost, deadline.

@@ -44,7 +44,9 @@ usage shape rather than on the load-test measurement this ADR was waiting for._
 
 _See ADR-4._
 
-## Note
+## Note — what was believed at the time
+
+_Left as written, before ADR-4. The first paragraph held up; the second did not._
 
 The reflex is to reach for RDS Proxy because it is the recognised production
 answer to Lambda connection exhaustion. At one writer's worth of concurrency,
@@ -54,3 +56,10 @@ storage only between sessions a few evenings a month.
 
 Whichever way this resolves, it should resolve against a measurement. The load
 test in M4 exists to produce that number.
+
+_On the second paragraph: waiting for a measurement was the wrong instinct here.
+The load test would have measured where the connection limit binds, but at
+twenty users it never binds, so the number would have been real and irrelevant.
+The decision turned on cost and usage shape, which were knowable without
+measuring anything. Insisting on evidence is right; insisting on evidence that
+cannot discriminate between the options is just delay._
