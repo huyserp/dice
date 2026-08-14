@@ -4,8 +4,8 @@ What is built, what is planned, and what is deliberately excluded.
 
 ## Current state
 
-`packages/scoring` is under construction. Its test suite is written and failing —
-the tests are the specification. Nothing is deployed.
+`packages/scoring` is complete, with its test suite green. The tests were written
+first and are the specification. Nothing is deployed; M2 is in progress.
 
 ## Principles
 
@@ -32,11 +32,21 @@ suite green.
 
 ### M2 — Infrastructure and one vertical slice
 
-AWS account hardening (MFA, IAM Identity Center, a Budgets alarm on day one) —
-sequenced in [`aws-account-setup.md`](aws-account-setup.md). Then `cdk bootstrap`
-and a first stack: VPC, Aurora Serverless v2, one Lambda, one HTTP API route.
+AWS account hardening (root MFA, a Budgets alarm on day one, GitHub OIDC in
+place of any local credential) — sequenced in
+[`aws-account-setup.md`](aws-account-setup.md), with IAM Identity Center
+deliberately deferred per [ADR-5](adr/0005-deferring-iam-identity-center.md).
+Then `cdk bootstrap`, and a first stack shaped by
+[ADR-4](adr/0004-zero-idle-cost-inside-a-vpc.md): Aurora Serverless v2 at
+`MinCapacity = 0`, one Lambda inside the VPC connecting directly over TLS with
+IAM database authentication, one HTTP API route, and no NAT Gateway — outbound
+reach is a single EventBridge interface endpoint plus free gateway endpoints.
 Exactly one endpoint end to end — `POST /games`. GitHub Actions deploys via OIDC
 role assumption; no long-lived access keys.
+
+ADR-4 leaves one thing to settle here: a paused cluster takes longer to resume
+than an HTTP API integration is allowed to wait, so how the wake-up is absorbed
+has to be decided before `POST /games` is built.
 
 *Done when:* one endpoint is live, deployed by pipeline, with nothing created by
 hand in the console.
@@ -52,10 +62,14 @@ stats projection. Cognito, invite-only. React frontend on S3 + CloudFront.
 ### M4 — Operational hardening
 
 Structured JSON logs with correlation IDs, EMF custom metrics, alarms on 5xx rate
-and p99 latency, a saved Logs Insights query. Load test with artillery until
-concurrent Lambdas exhaust Aurora's connection limit, then resolve
-[ADR-2](adr/0002-scale-to-zero-vs-rds-proxy.md) against the measurement rather than
-against intuition. Accessibility pass on the scorecard grid — it is a real table
+and p99 latency, a saved Logs Insights query. Load test with artillery — no
+longer to resolve [ADR-2](adr/0002-scale-to-zero-vs-rds-proxy.md), which
+[ADR-4](adr/0004-zero-idle-cost-inside-a-vpc.md) settled on cost grounds, but to
+characterise resume latency and to find where concurrent Lambdas start pressing
+on Aurora's connection limit. ADR-4 records that limit as "does not bind at this
+scale" rather than as impossible, and the usual remedy is closed off — RDS Proxy
+prevents auto-pause — so the number is worth knowing before it matters.
+Accessibility pass on the scorecard grid — it is a real table
 read on phones in dim rooms, so touch targets, contrast, screen-reader labels and
 keyboard navigation all matter.
 
