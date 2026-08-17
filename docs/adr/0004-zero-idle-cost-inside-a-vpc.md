@@ -98,7 +98,12 @@ the cluster, which prevents auto-pause from ever engaging.
 Keep both controls, and get the idle cost down by removing hourly billing rather
 than by removing the VPC.
 
-1. **Aurora Serverless v2 with `MinCapacity = 0`** and an auto-pause interval.
+1. **Aurora Serverless v2 with `MinCapacity = 0`** and an auto-pause interval of
+   **300 seconds** — the minimum AWS allows, and its default. A longer interval
+   would hold the cluster warm through mid-game lulls at roughly $0.25 per
+   session; five minutes was chosen instead because a lull that long usually
+   means the session has ended, and ADR-6 moves the resume off the critical path
+   regardless.
 2. **Lambda inside the VPC**, in private subnets, connecting directly to Aurora
    over TLS with `mysql2`.
 3. **IAM database authentication.** No stored password, no Secrets Manager.
@@ -172,23 +177,11 @@ therefore cannot be absorbed inside a synchronous request: the gateway returns
 because the gateway gives up first.
 
 This is a constraint on the API shape rather than a tuning problem, and it is the
-main thing this decision costs. It is **unresolved**, and must be settled before
-`POST /games` is built. Three candidates:
-
-- **Wake asynchronously.** A `POST /wake` fired when the scorekeeper opens the
-  app issues a trivial query and returns immediately; by the time they finish
-  naming players the cluster is up. Cheapest, and it fails soft — a missed wake
-  just means the slow path. It must sit behind Cognito like every other route:
-  an unauthenticated endpoint whose purpose is to start a database lets anyone
-  who finds it hold the cluster awake, deleting the saving this ADR exists for.
-- **Make game creation async.** `POST /games` returns `202` with a poll or a
-  WebSocket callback. Correct in the general case, and more machinery.
-- **A REST API for the write path,** where the integration timeout can be raised
-  to 300 seconds by quota request. Costs more per request and contradicts the
-  stack table in `CLAUDE.md`.
-
-Whichever is chosen, the resume should be paid before anyone is waiting on a
-turn, not on the first turn of the evening.
+main thing this decision costs. **Resolved in
+[ADR-6](0006-absorbing-the-database-resume.md)** with a polled `GET /ready`
+endpoint that both triggers the resume and reports when it has finished, so the
+wait overlaps game setup instead of landing on a player waiting for a turn to be
+recorded.
 
 **Connection retry logic is mandatory, not defensive.** Connections attempted
 while a cluster is mid-resume fail. This is ordinary operation here, not an edge
@@ -245,9 +238,20 @@ architecture would have put it anyway.
 setup cost that made VPC-attached Lambda notorious was removed by Hyperplane ENIs
 in 2019. Any argument for leaving the VPC has to stand on something else.
 
-**Region availability should be confirmed at bootstrap.** 0-ACU auto-pause is
-region-gated. `us-east-2` is expected to support it; that has not been checked
-directly and is a pre-flight item, not an assumption to deploy on.
+**Region availability is confirmed.** 0-ACU auto-pause is region-gated. AWS's
+supported-regions table lists US East (Ohio) as offering Aurora MySQL "version
+3.02.0 and higher" for Aurora Serverless v2 — an unrestricted range that includes
+the 3.08+ required here. This was worth checking rather than assuming: several
+regions in the same table carry genuinely restricted lists, such as Asia Pacific
+(New Zealand) at "3.04.3 and higher, 3.08.0 and higher."
+
+**An idle developer connection silently cancels the entire saving.** Aurora will
+not pause while any user-initiated connection is open, regardless of whether it
+is running anything. A GUI client left connected — TablePlus, Workbench, a
+forgotten `mysql` shell — holds the cluster awake indefinitely, with no error and
+no warning anywhere. On this architecture that converts an ~$8/month bill into
+something closer to $50. The `ServerlessDatabaseCapacity` metric is the way to
+catch it, and it is the first thing to check when the bill looks wrong.
 
 **What would make us revisit this.** Real users with a latency expectation, or
 sessions frequent enough that the cluster rarely pauses — at which point the
