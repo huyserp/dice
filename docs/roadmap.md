@@ -41,12 +41,12 @@ Then `cdk bootstrap`, and a first stack shaped by
 `MinCapacity = 0`, one Lambda inside the VPC connecting directly over TLS with
 IAM database authentication, one HTTP API route, and no NAT Gateway — outbound
 reach is a single EventBridge interface endpoint plus free gateway endpoints.
-Exactly one endpoint end to end — `POST /games`. GitHub Actions deploys via OIDC
-role assumption; no long-lived access keys.
 
-ADR-4 leaves one thing to settle here: a paused cluster takes longer to resume
-than an HTTP API integration is allowed to wait, so how the wake-up is absorbed
-has to be decided before `POST /games` is built.
+Two routes end to end: `POST /games`, and the `GET /ready` probe that
+[ADR-6](adr/0006-absorbing-the-database-resume.md) requires to keep the database
+resume off the critical path. GitHub Actions deploys via OIDC role assumption; no
+long-lived access keys, and pull requests post a `cdk diff` from a separate
+read-only role so infrastructure is reviewed as a plan rather than as TypeScript.
 
 *Done when:* one endpoint is live, deployed by pipeline, with nothing created by
 hand in the console.
@@ -55,7 +55,10 @@ hand in the console.
 
 Full game flow: create a game, record turns, render a live scorecard. WebSocket
 fan-out to viewers with the connection registry in DynamoDB. EventBridge into the
-stats projection. Cognito, invite-only. React frontend on S3 + CloudFront.
+stats projection. Cognito, invite-only. React frontend on S3 + CloudFront, with
+the suggestion engine running in the browser per
+[ADR-3](adr/0003-suggestion-engine-placement.md) — so it stays responsive even
+while the database is resuming.
 
 *Done when:* a real game can be played on it.
 

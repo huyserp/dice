@@ -170,6 +170,19 @@ to exist first.
       role from needing broad permissions: it can assume CDK's roles and do
       nothing else directly. `hnb659fds` is the default bootstrap qualifier, not
       a random string; it changes only if the bootstrap is customised.
+- [ ] **Add a second, read-only role for pull requests**, in the same template.
+      Its trust policy pins `sub` to `repo:<owner>/<repo>:pull_request` — the
+      claim a PR-triggered workflow actually presents, which is why the deploy
+      role above cannot serve both. Grant it only what `cdk diff` needs: reading
+      CloudFormation stack state, and `sts:AssumeRole` on the CDK **lookup** role.
+      Never the deploy role.
+
+      Without this, infrastructure changes get merged having been reviewed as
+      TypeScript rather than as a plan — and CDK source shows intent, not
+      consequence. Renaming a construct changes its logical ID, which
+      CloudFormation reads as *delete and recreate*; on an Aurora cluster that is
+      the data. `cdk diff` says so plainly and the source does not. ADR-5 removed
+      the local fallback, so this role is now the only place a plan can be seen.
 - [ ] **Deploy the template in the CloudFormation console**, signed in as root.
       Under ADR-5 this is the only console-created infrastructure, and it exists
       to avoid ever putting a credential on a laptop.
@@ -197,24 +210,25 @@ for itself.
 - [ ] **Generate the template locally:** `cdk bootstrap --show-template >
       bootstrap-template.yaml`. This prints the template and contacts nothing —
       it needs no AWS credentials, which is what makes it usable under ADR-5.
-- [ ] **Scope the CloudFormation execution role before deploying** — see below.
+- [x] **Decide what the CloudFormation execution role may do.** Settled in
+      [ADR-7](adr/0007-bootstrap-execution-role-stays-admin.md): the default
+      `AdministratorAccess` is accepted and recorded, to be narrowed at the end of
+      M3 when the service list can be read off deployed stacks rather than
+      guessed. Deploy the template unmodified.
 - [ ] **Deploy it as the `CDKToolkit` stack** in the CloudFormation console, with
       `CAPABILITY_NAMED_IAM`. The stack name matters: CDK looks for exactly
       `CDKToolkit`.
 
-> **Read the bootstrap roles before accepting them.**
+> **Know what you accepted.**
 >
-> By default, bootstrap creates a CloudFormation execution role with
-> `AdministratorAccess`. That is precisely the "generated policy you did not write
-> by hand" that `CLAUDE.md` says to assume is wrong. It is defensible for a
-> personal account and indefensible in a shared one.
+> `cfn-exec-role` is the role **CloudFormation** assumes to create your
+> resources — not the role CI holds. With `AdministratorAccess` on it, whatever a
+> stack describes gets built, with no permission boundary to stop an accidental
+> IAM role or a resource in an unexpected service.
 >
-> Having the template as a file makes this easier than the CLI flag does — the
-> policy is visible and editable before anything is created. Scoping it properly
-> means enumerating every service the stacks touch, which is real work and is
-> easier once the stacks exist. Either scope it now, or accept the default *and
-> write down that you did* — the failure mode is accepting it silently and later
-> believing the deploy pipeline is least-privilege.
+> ADR-7 records why that is accepted here and what would change it. The failure
+> this guards against is not the permission itself but forgetting it, and later
+> believing the deploy path is least-privilege when it is not.
 
 **Stop condition:** a workflow on `main` assumes the deploy role, assumes the CDK
 roles in turn, and runs `cdk diff` against a real account with no stored
@@ -222,29 +236,26 @@ credentials.
 
 ---
 
-## What this leaves open
+## Known limits of this setup
 
-Pinning `sub` to `refs/heads/main` means pull requests cannot assume the role, so
-a PR cannot show a real `cdk diff` — infrastructure gets reviewed without seeing
-its plan. Worth deciding deliberately rather than discovering at the first
-infrastructure PR. Two usual resolutions, each with a catch that follows from
-choices made above:
+Not open questions — decided, with consequences worth keeping in view.
 
-- **A second read-only role scoped to `pull_request`,** whose `sub` is
-  `repo:<owner>/<repo>:pull_request`. Note that repository secrets are not
-  exposed to workflows triggered by pull requests *from forks*, so the role ARN
-  stored as a secret in Phase 4 would be empty on exactly those runs. On a
-  single-maintainer repo this never comes up; it is a reason not to build a
-  process around it.
-- **A GitHub Environment with required approval.** This changes the `sub` claim
-  to `repo:<owner>/<repo>:environment:<name>` — it is no longer a ref-based
-  claim at all. Because Phase 4 pins `sub` with `StringEquals`, adopting an
-  Environment without rewriting the trust policy makes every deploy fail
-  `AssumeRoleWithWebIdentity`, and the error will not obviously point at the
-  Environment as the cause.
+**Fork pull requests get no plan.** Repository secrets are not exposed to
+workflows triggered by pull requests from forks, so the role ARN stored in Phase 4
+is empty on exactly those runs and the `cdk diff` job cannot authenticate. On a
+single-maintainer repo this never fires. It is a reason not to build process
+around the diff job, and a thing to remember if the repo ever takes outside
+contributions.
 
-Under [ADR-5](adr/0005-deferring-iam-identity-center.md) this matters more than
-it otherwise would. With no local credentials there is no `cdk diff` from a
-terminal either, so a PR-scoped read-only role is the *only* way to see a plan
-before merging. That makes it worth resolving early rather than at the first
-infrastructure PR.
+**Adopting a GitHub Environment would break every deploy.** An Environment
+changes the OIDC `sub` claim to `repo:<owner>/<repo>:environment:<name>` — it
+stops being a ref-based claim at all. Because Phase 4 pins `sub` with
+`StringEquals`, adding one without rewriting the trust policy makes every deploy
+fail `AssumeRoleWithWebIdentity`, and the error does not point at the Environment
+as the cause. Worth knowing before reaching for required-approval gates.
+
+**Two roles now share one template, and only one of them is safe to widen.** The
+deploy role and the read-only PR role differ by their `sub` claim and their
+permissions. Loosening the PR role's `sub` to a wildcard, or granting it the
+deploy role's `sts:AssumeRole` target, silently converts a review mechanism into
+a deployment path triggerable by any pull request.
