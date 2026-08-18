@@ -12,7 +12,16 @@ is queryable rather than trapped in a spreadsheet.
 Early. The scoring engine is complete and tested; nothing is deployed yet.
 See [`docs/roadmap.md`](docs/roadmap.md) for milestones and scope.
 
+Decisions are recorded as they are made, with what each one costs.
+[ADR-4](docs/adr/0004-zero-idle-cost-inside-a-vpc.md) gets idle cost down to
+roughly a dollar a month without giving up the database's network boundary.
+[ADR-7](docs/adr/0007-bootstrap-execution-role-stays-admin.md) records a
+deployment role that is deliberately *not* least-privilege, and names the point
+at which that changes.
+
 ## Architecture
+
+Target architecture. See [Status](#status) for what exists today.
 
 ```
 React + TypeScript (Vite) ──► S3 + CloudFront
@@ -41,12 +50,15 @@ projection subscribe independently, so neither blocks the write path.
 
 ## Packages
 
-| Package | What |
-|---|---|
-| `packages/scoring` | Pure rules engine. No deps, no I/O. Runs in Node and the browser. |
-| `packages/api` | Lambda handlers |
-| `packages/web` | React frontend |
-| `packages/infra` | CDK app |
+| Package | Added in | What |
+|---|---|---|
+| `packages/scoring` | M1 | Pure rules engine. No deps, no I/O. Runs in Node and the browser. |
+| `packages/infra` | M2 | CDK app |
+| `packages/api` | M2 | Lambda handlers |
+| `packages/web` | M3 | React frontend |
+
+Only `scoring` exists today. The rest are created in the milestone that needs
+them — see [`packages/README.md`](packages/README.md).
 
 ## Getting started
 
